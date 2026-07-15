@@ -1,0 +1,8 @@
+{
+	"name": "DDTools.ViewUICustomer.Runtime",
+	"rootNamespace": "Core.Scripts.UI.Universal.ViewUICustomer",
+	"references": [
+		"Unity.TextMeshPro",
+		"UnityEngine.UI"
+	]
+}
