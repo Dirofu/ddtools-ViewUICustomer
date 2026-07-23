@@ -49,5 +49,20 @@ namespace Core.EditorTools.ViewUICustomer
 		public Vector3 LocalPosition;
 		public bool UsesAnchoredPosition;
 		public Vector2 SizeDelta;
+		public List<ViewUICustomerPropertyData> Properties = new();
+	}
+
+	[Serializable]
+	public class ViewUICustomerPropertyData
+	{
+		public string ComponentType;
+		public int ComponentIndex;
+		public string PropertyPath;
+		public int ValueType;
+		public string ValueJson;
+		public string ObjectGlobalId;
+		public string ObjectPath;
+		public string ObjectType;
+		public int ObjectComponentIndex = -1;
 	}
 }

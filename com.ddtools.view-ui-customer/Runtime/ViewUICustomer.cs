@@ -3,10 +3,6 @@ using System.Collections;
 using UnityEngine;
 using System.Collections.Generic;
 
-#if UNITY_EDITOR
-using UnityEditor;
-#endif
-
 namespace Core.Scripts.UI.Universal.ViewUICustomer
 {
 	public class ViewUICustomer<TType, TSlotElementType> : MonoBehaviour
@@ -17,129 +13,6 @@ namespace Core.Scripts.UI.Universal.ViewUICustomer
 		where TSlotElementType : Enum
 	{
 #if UNITY_EDITOR
-		[SerializeField] private bool _isDebug = false;
-		[SerializeField] private TType _debugStatusType;
-		[SerializeField] private ViewUIStateType _debugStateType;
-
-		[SerializeField] private TType _settedStatusType;
-		[SerializeField] private ViewUIStateType _settedStateType;
-
-		[SerializeField] private TType _filterStatusType;
-		[SerializeField] private ViewUIStateType _filterStateType;
-		[SerializeField] private TSlotElementType _filterElementType;
-
-		private void Search()
-		{
-			if (_isDebug == false)
-				return;
-
-			if (UpdateStates() == false)
-				return;
-
-			foreach (TType type in Enum.GetValues(typeof(TType)))
-			{
-				if (_statesDic.ContainsKey(type) == false || Convert.ToInt32(type) < 0)
-					continue;
-
-				this[type].UpdateGroups();
-				bool typeMatched = (EqualityComparer<TType>.Default.Equals(type, _filterStatusType) && Convert.ToInt32(type) >= 0) || Convert.ToInt32(_filterStatusType) == -1;
-				this[type].UpdateVisibleState(typeMatched);
-
-				foreach (ViewUIStateType state in Enum.GetValues(typeof(ViewUIStateType)))
-				{
-					if (this[type].Groups.ContainsKey(state) == false || Convert.ToInt32(state) < 0)
-						continue;
-					
-					this[type][state].UpdateElements();
-					bool stateMatched = (EqualityComparer<ViewUIStateType>.Default.Equals(state, _filterStateType) && Convert.ToInt32(state) >= 0) || Convert.ToInt32(_filterStateType) == -1;
-					this[type][state].UpdateVisibleState(stateMatched);
-
-
-					foreach (TSlotElementType item in Enum.GetValues(typeof(TSlotElementType)))
-					{
-						if (this[type][state].Elements.ContainsKey(item) == false || Convert.ToInt32(item) < 0)
-							continue;
-
-						bool elementMatched = (EqualityComparer<TSlotElementType>.Default.Equals(item, _filterElementType) && Convert.ToInt32(item) >= 0) || Convert.ToInt32(_filterElementType) == -1;
-						this[type][state][item].UpdateVisibleState(elementMatched);
-					}
-				}
-			}
-		}
-
-		private void ResetSearch()
-		{
-			if (_isDebug == false)
-				return;
-
-			if (UpdateStates() == false)
-				return;
-
-			foreach (TType type in Enum.GetValues(typeof(TType)))
-			{
-				if (_statesDic.ContainsKey(type) == false || Convert.ToInt32(type) < 0)
-					continue;
-
-				this[type].UpdateGroups();
-				this[type].UpdateVisibleState(true);
-
-				foreach (ViewUIStateType state in Enum.GetValues(typeof(ViewUIStateType)))
-				{
-					if (this[type].Groups.ContainsKey(state) == false || Convert.ToInt32(state) < 0)
-						continue;
-
-					this[type][state].UpdateElements();
-					this[type][state].UpdateVisibleState(true);
-
-					foreach (TSlotElementType item in Enum.GetValues(typeof(TSlotElementType)))
-					{
-						if (this[type][state].Elements.ContainsKey(item) == false || Convert.ToInt32(item) < 0)
-							continue;
-
-						this[type][state][item].UpdateVisibleState(true);
-					}
-				}
-			}
-		}
-
-		private void LoadCurrentState()
-		{
-			if (_isDebug == false)
-				return;
-
-			if (UpdateStates() == false)
-				return;
-
-			foreach (TType type in Enum.GetValues(typeof(TType)))
-			{
-				if (_statesDic.ContainsKey(type) == false)
-					continue;
-
-				this[type].UpdateGroups();
-
-				foreach (ViewUIStateType state in Enum.GetValues(typeof(ViewUIStateType)))
-				{
-					if (this[type].Groups.ContainsKey(state) == false)
-						continue;
-
-					this[type][state].UpdateElements();
-				}
-			}
-
-			SetState(_debugStateType, _debugStatusType);
-			_states = new List<ViewUIState<TType, TSlotElementType>>(_statesDic.Values);
-			EditorUtility.SetDirty(gameObject);
-		}
-
-		private void SaveCurrentState()
-		{
-			if (_isDebug == false)
-				return;
-
-			CaptureCurrentState(_debugStatusType, _debugStateType);
-			EditorUtility.SetDirty(gameObject);
-		}
-
 		private bool CaptureCurrentState(TType statusType, ViewUIStateType stateType)
 		{
 			NormalizeEditorStates();
@@ -308,36 +181,12 @@ namespace Core.Scripts.UI.Universal.ViewUICustomer
 			}
 		}
 
-		private void ClearSettings()
-		{
-			UpdateStates();
-
-			foreach (TType type in Enum.GetValues(typeof(TType)))
-			{
-				if (_statesDic.ContainsKey(type) == false)
-					continue;
-				;
-				foreach (ViewUIStateType state in Enum.GetValues(typeof(ViewUIStateType)))
-				{
-					if (this[type].Groups.ContainsKey(state) == false)
-						continue;
-
-					foreach (TSlotElementType item in Enum.GetValues(typeof(TSlotElementType)))
-					{
-						this[type][state].Reset();
-					}
-					this[type].Reset();
-				}
-			}
-
-			_statesDic.Clear();
-			_states.Clear();
-		}
 #endif
 
 		[SerializeField] private List<ViewUIState<TType, TSlotElementType>> _states;
 		[SerializeField] private bool _buttonSupport = false;
 		[SerializeField] private ViewUIButton _button;
+		[SerializeField] private ViewUIButtonClickBehavior _clickBehavior = ViewUIButtonClickBehavior.StayActive;
 		[SerializeField, Min(0f)] private float _transitionDuration = 0.15f;
 		[SerializeField] private AnimationCurve _transitionCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
 
@@ -406,11 +255,6 @@ namespace Core.Scripts.UI.Universal.ViewUICustomer
 			_currentType = type;
 			_currentStateType = stateType;
 
-			#if UNITY_EDITOR
-			_settedStatusType = type;
-			_settedStateType = stateType;
-			#endif
-
 			CancelTransition();
 
 			bool isValid = true;
@@ -473,6 +317,9 @@ namespace Core.Scripts.UI.Universal.ViewUICustomer
 				_transitionCoroutine = null;
 			}
 
+			foreach (var element in _transitionElements)
+				element.CancelTransition();
+
 			_transitionElements.Clear();
 		}
 
@@ -516,7 +363,96 @@ namespace Core.Scripts.UI.Universal.ViewUICustomer
 				}
 			}
 
+			ConfigurePropertyUsage(_statesDic.Values);
+
 			return isValid;
+		}
+
+		private static void ConfigurePropertyUsage(IEnumerable<ViewUIState<TType, TSlotElementType>> states)
+		{
+			var elementsBySlot = new Dictionary<TSlotElementType, List<ViewUIElement<TSlotElementType>>>();
+
+			foreach (var state in states)
+			{
+				foreach (var group in state.Groups.Values)
+				{
+					foreach (var pair in group.Elements)
+					{
+						if (elementsBySlot.TryGetValue(pair.Key, out var elements) == false)
+						{
+							elements = new List<ViewUIElement<TSlotElementType>>();
+							elementsBySlot.Add(pair.Key, elements);
+						}
+
+						elements.Add(pair.Value);
+					}
+				}
+			}
+
+			foreach (var elements in elementsBySlot.Values)
+				ConfigureElementUsage(elements);
+		}
+
+		private static void ConfigureElementUsage(List<ViewUIElement<TSlotElementType>> elements)
+		{
+			if (elements.Count == 0)
+				return;
+
+			foreach (var element in elements)
+				element.ResetUsage();
+
+			bool hasSingleState = elements.Count == 1;
+			var first = elements[0];
+			bool useActive = hasSingleState;
+			bool usePosition = hasSingleState;
+			bool useSizeDelta = hasSingleState;
+			bool useColor = hasSingleState;
+			bool useMaterial = hasSingleState;
+
+			for (int i = 1; i < elements.Count; i++)
+			{
+				var element = elements[i];
+				useActive |= element.IsActiveValue != first.IsActiveValue;
+				usePosition |= element.PositionValue != first.PositionValue
+					|| element.UsesAnchoredPosition != first.UsesAnchoredPosition;
+				useSizeDelta |= element.SizeDeltaValue != first.SizeDeltaValue;
+				useColor |= element.ColorValue != first.ColorValue;
+				useMaterial |= element.MaterialValue != first.MaterialValue;
+			}
+
+			var propertyValues = new Dictionary<string, List<ViewUIProperty>>();
+			foreach (var element in elements)
+			{
+				foreach (var property in element.Properties)
+				{
+					if (propertyValues.TryGetValue(property.Key, out var values) == false)
+					{
+						values = new List<ViewUIProperty>();
+						propertyValues.Add(property.Key, values);
+					}
+
+					values.Add(property);
+				}
+			}
+
+			var usedProperties = new HashSet<string>();
+			foreach (var pair in propertyValues)
+			{
+				var values = pair.Value;
+				bool isUsed = hasSingleState || values.Count != elements.Count;
+
+				for (int i = 1; isUsed == false && i < values.Count; i++)
+					isUsed = values[i].HasSameValue(values[0]) == false;
+
+				if (isUsed)
+					usedProperties.Add(pair.Key);
+			}
+
+			foreach (var element in elements)
+			{
+				element.SetBuiltInUsage(useActive, usePosition, useSizeDelta, useColor, useMaterial);
+				element.SetPropertyUsage(usedProperties);
+			}
 		}
 
 		private bool RebuildStatesDictionary()
@@ -616,8 +552,14 @@ namespace Core.Scripts.UI.Universal.ViewUICustomer
 
 		private void OnButtonClicked()
 		{
-			SetState(ViewUIStateType.Active, _currentType);
-			_currentStateType = ViewUIStateType.Active;
+			if (_clickBehavior == ViewUIButtonClickBehavior.StayActive)
+			{
+				SetState(ViewUIStateType.Active, _currentType);
+				return;
+			}
+
+			if (_currentStateType != ViewUIStateType.Idle)
+				SetState(ViewUIStateType.Idle, _currentType);
 		}
 	}
 }

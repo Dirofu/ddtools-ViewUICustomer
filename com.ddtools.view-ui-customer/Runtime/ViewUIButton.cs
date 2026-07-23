@@ -4,6 +4,12 @@ using UnityEngine.EventSystems;
 
 namespace Core.Scripts.UI.Universal.ViewUICustomer
 {
+	public enum ViewUIButtonClickBehavior
+	{
+		StayActive = 0,
+		ReturnToIdle = 1,
+	}
+
 	public class ViewUIButton : MonoBehaviour,
 		IPointerClickHandler, 
 		IPointerEnterHandler,

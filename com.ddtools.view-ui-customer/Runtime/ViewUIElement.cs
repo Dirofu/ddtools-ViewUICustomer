@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -17,6 +18,7 @@ namespace Core.Scripts.UI.Universal.ViewUICustomer
 		[SerializeField] private Vector3 _rect;
 		[SerializeField, HideInInspector] private bool _usesAnchoredPosition;
 		[SerializeField] private Vector2 _sizeDelta;
+		[SerializeField, HideInInspector] private List<ViewUIProperty> _properties = new();
 
 		private bool _isVisible = true;
 		private RectTransform _transitionRectTransform;
@@ -25,8 +27,24 @@ namespace Core.Scripts.UI.Universal.ViewUICustomer
 		private Vector3 _startPosition;
 		private Vector2 _startSizeDelta;
 		private Color _startColor;
+		private bool _startActive;
+		private bool _transitionStarted;
+		private bool _useActive;
+		private bool _usePosition;
+		private bool _useSizeDelta;
+		private bool _useColor;
+		private bool _useMaterial;
 
 		public TSlotElementType SlotType => _slotType;
+		internal IReadOnlyList<ViewUIProperty> Properties => _properties != null
+			? _properties
+			: Array.Empty<ViewUIProperty>();
+		internal bool IsActiveValue => _isActive;
+		internal Vector3 PositionValue => _rect;
+		internal Vector2 SizeDeltaValue => _sizeDelta;
+		internal Color ColorValue => _color;
+		internal Material MaterialValue => _material;
+		internal bool UsesAnchoredPosition => _usesAnchoredPosition;
 
 		public void UpdateVisibleState(bool newState) => _isVisible = newState;
 
@@ -64,6 +82,10 @@ namespace Core.Scripts.UI.Universal.ViewUICustomer
 			else if (element.TryGetComponent(out TMP_Text text))
 				SaveSettings(text);
 
+#if UNITY_EDITOR
+			CaptureProperties(element);
+#endif
+
 			return true;
 		}
 
@@ -80,22 +102,23 @@ namespace Core.Scripts.UI.Universal.ViewUICustomer
 				return false;
 			}
 
-			if (_isActive == false)
+			if (_useActive && _isActive == false)
 			{
 				_element.SetActive(false);
 				return true;
 			}
 
-			_element.SetActive(true);
+			if (_useActive)
+				_element.SetActive(true);
 
 			if (_element.TryGetComponent(out RectTransform rectTransform) == true)
 			{
-				if (_usesAnchoredPosition)
+				if (_usePosition && _usesAnchoredPosition)
 					rectTransform.anchoredPosition3D = _rect;
-				else
+				else if (_usePosition)
 					rectTransform.localPosition = _rect;
 
-				if (_sizeDelta != Vector2.zero)
+				if (_useSizeDelta)
 					rectTransform.sizeDelta = _sizeDelta;
 			}
 			else
@@ -108,6 +131,12 @@ namespace Core.Scripts.UI.Universal.ViewUICustomer
 			else if (_element.TryGetComponent(out TMP_Text text))
 				SetSettings(text);
 
+			foreach (var property in _properties ?? new List<ViewUIProperty>())
+			{
+				if (property.TryBegin(_element, logWarning))
+					property.Complete();
+			}
+
 			return true;
 		}
 
@@ -119,7 +148,10 @@ namespace Core.Scripts.UI.Universal.ViewUICustomer
 				return false;
 			}
 
-			if (_isActive == true)
+			_startActive = _element.activeSelf;
+			_transitionStarted = true;
+
+			if (_useActive && _isActive == true)
 				_element.SetActive(true);
 
 			_transitionRectTransform = null;
@@ -143,6 +175,9 @@ namespace Core.Scripts.UI.Universal.ViewUICustomer
 			else if (_element.TryGetComponent(out _transitionText) == true)
 				_startColor = _transitionText.color;
 
+			foreach (var property in _properties ?? new List<ViewUIProperty>())
+				property.TryBegin(_element, logWarning);
+
 			return true;
 		}
 
@@ -153,19 +188,22 @@ namespace Core.Scripts.UI.Universal.ViewUICustomer
 
 			if (_transitionRectTransform != null)
 			{
-				if (_usesAnchoredPosition)
+				if (_usePosition && _usesAnchoredPosition)
 					_transitionRectTransform.anchoredPosition3D = Vector3.LerpUnclamped(_startPosition, _rect, progress);
-				else
+				else if (_usePosition)
 					_transitionRectTransform.localPosition = Vector3.LerpUnclamped(_startPosition, _rect, progress);
 
-				if (_sizeDelta != Vector2.zero)
+				if (_useSizeDelta)
 					_transitionRectTransform.sizeDelta = Vector2.LerpUnclamped(_startSizeDelta, _sizeDelta, progress);
 			}
 
-			if (_transitionImage != null)
+			if (_useColor && _transitionImage != null)
 				_transitionImage.color = Color.LerpUnclamped(_startColor, _color, progress);
-			else if (_transitionText != null)
+			else if (_useColor && _transitionText != null)
 				_transitionText.color = Color.LerpUnclamped(_startColor, _color, progress);
+
+			foreach (var property in _properties ?? new List<ViewUIProperty>())
+				property.Apply(progress);
 		}
 
 		public void CompleteTransition()
@@ -175,10 +213,27 @@ namespace Core.Scripts.UI.Universal.ViewUICustomer
 
 			ApplyTransition(1f);
 
-			if (_transitionImage != null)
+			if (_useMaterial && _transitionImage != null)
 				_transitionImage.material = _material;
 
-			_element.SetActive(_isActive);
+			foreach (var property in _properties ?? new List<ViewUIProperty>())
+				property.Complete();
+
+			if (_useActive)
+				_element.SetActive(_isActive);
+
+			_transitionStarted = false;
+		}
+
+		public void CancelTransition()
+		{
+			if (_element == null || _transitionStarted == false)
+				return;
+
+			if (_useActive)
+				_element.SetActive(_startActive);
+
+			_transitionStarted = false;
 		}
 
 		private void SaveSettings(Image image)
@@ -194,13 +249,107 @@ namespace Core.Scripts.UI.Universal.ViewUICustomer
 
 		private void SetSettings(Image image)
 		{
-			image.color = _color;
-			image.material = _material;
+			if (_useColor)
+				image.color = _color;
+			if (_useMaterial)
+				image.material = _material;
 		}
 
 		private void SetSettings(TMP_Text text)
 		{
-			text.color = _color;
+			if (_useColor)
+				text.color = _color;
 		}
+
+		internal void ResetUsage()
+		{
+			_useActive = false;
+			_usePosition = false;
+			_useSizeDelta = false;
+			_useColor = false;
+			_useMaterial = false;
+			foreach (var property in _properties ?? new List<ViewUIProperty>())
+				property.SetUsed(false);
+		}
+
+		internal void SetBuiltInUsage(bool active, bool position, bool sizeDelta, bool color, bool material)
+		{
+			_useActive = active;
+			_usePosition = position;
+			_useSizeDelta = sizeDelta;
+			_useColor = color;
+			_useMaterial = material;
+		}
+
+		internal void SetPropertyUsage(HashSet<string> usedProperties)
+		{
+			foreach (var property in _properties ?? new List<ViewUIProperty>())
+				property.SetUsed(usedProperties.Contains(property.Key));
+		}
+
+#if UNITY_EDITOR
+		private void CaptureProperties(GameObject element)
+		{
+			_properties ??= new List<ViewUIProperty>();
+			_properties.Clear();
+			var componentTypeCounts = new Dictionary<Type, int>();
+
+			foreach (var component in element.GetComponents<Component>())
+			{
+				if (component == null || component is ViewUIGetHelper<TSlotElementType> || IsViewUICustomer(component.GetType()))
+					continue;
+
+				var componentType = component.GetType();
+				componentTypeCounts.TryGetValue(componentType, out int componentIndex);
+				componentTypeCounts[componentType] = componentIndex + 1;
+				var serializedObject = new UnityEditor.SerializedObject(component);
+				var property = serializedObject.GetIterator();
+				bool enterChildren = true;
+
+				while (property.NextVisible(enterChildren))
+				{
+					enterChildren = property.propertyType == UnityEditor.SerializedPropertyType.Generic;
+
+					if (ShouldSkipProperty(component, property.propertyPath))
+						continue;
+
+					if (ViewUIProperty.TryCapture(component, componentIndex, property, out var snapshot))
+					{
+						_properties.Add(snapshot);
+						enterChildren = false;
+					}
+				}
+			}
+		}
+
+		private static bool IsViewUICustomer(Type type)
+		{
+			while (type != null)
+			{
+				if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(ViewUICustomer<,>))
+					return true;
+				type = type.BaseType;
+			}
+
+			return false;
+		}
+
+		private static bool ShouldSkipProperty(Component component, string propertyPath)
+		{
+			if (propertyPath == "m_Script" || propertyPath == "m_GameObject")
+				return true;
+
+			if (component is TMP_Text && propertyPath == "m_text")
+				return true;
+
+			if (component is RectTransform && (propertyPath == "m_AnchoredPosition" || propertyPath == "m_SizeDelta"))
+				return true;
+
+			if (component is Graphic && (propertyPath == "m_Color" || propertyPath == "m_Material"))
+				return true;
+
+			return false;
+		}
+#endif
 	}
 }

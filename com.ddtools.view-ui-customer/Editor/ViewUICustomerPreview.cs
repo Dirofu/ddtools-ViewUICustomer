@@ -189,6 +189,8 @@ namespace Core.EditorTools.ViewUICustomer
 				}
 			}
 
+			ViewUICustomerPresetSerializer.ApplyElementProperties(_previewComponent, gameObject, data);
+
 			EnsureRootAtOrigin();
 			return true;
 		}
